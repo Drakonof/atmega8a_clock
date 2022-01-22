@@ -1,5 +1,3 @@
-project_name=atmega8a_clock
-
 !.gitignore
 !README.
 *.d
@@ -14,5 +12,4 @@ project_name=atmega8a_clock
 *.atsln
 *.componentinfo.xml
 *.cppproj
-
-firmware/$project_name/.vs/*
+*.atsuo
