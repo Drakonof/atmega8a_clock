@@ -1,0 +1,8 @@
+!.gitignore
+!README.
+Debug/*
+Release/*
+.vs.*
+*.atsln
+*.xml
+*.cppproj
