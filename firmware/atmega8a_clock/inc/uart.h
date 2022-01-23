@@ -10,24 +10,23 @@
 typedef enum
 {
 	stop_1,
-	stop_1d5,
 	stop_2,
 } uart_stop_bits;
 
-typedef enum
+typedef enum 
 {
-	even,
-	odd,
-	space,
-	mark,
-	none_parity
+	none,
+	even = 2,
+	odd
 } uart_parity_type;
 
 typedef enum
 {
+	data_5,
+	data_6,
+	data_7,
 	data_8,
-	data_7 = 2,
-	data_6
+	data_9 = 7,
 } uart_data_bits;
 
 typedef enum
@@ -40,39 +39,43 @@ typedef enum
 
 typedef enum
 {
-	tx,
 	rx,
+	tx,
 	both
 } uart_path_reset;
 
 typedef struct
 {
-	volatile _Bool     ready;
+	volatile bool     ready;
 //	ps_uart_id           id;
-	volatile status_t      init;
+	volatile bool      is_init;
+	uart_stop_bits stop_bits;
 	
-	uart_stop_bits    stop_bits;
-	uart_parity_type  parity_type;
+	uart_parity_type  parity;
 	uart_data_bits    data_bits;
 	uart_channel_mode channel_mode;
 	uint32_t             baud_rate;
-	_Bool do_unblocking_mode;
+	bool do_double_speed;
+	bool do_falling_edge_polarity;
+	bool do_mul_proc;
+	bool do_unblocking_mode;
+	bool do_synchronous;
 } uart_handler;
 
 status_t uart_init(uart_handler *p_handle);
 status_t uart_re_init(uart_handler *p_handle);
-status_t uart_release(void);
-status_t uart_read_data(void *p_data, size_t size);
-_Bool uart_get_ready(status_t *p_init_status);
-status_t uart_write_data(char *p_data, size_t size);//void
+status_t uart_release(uart_handler *p_handle);
+status_t uart_read_data(uart_handler *p_handle, void *p_data, size_t size);
+status_t uart_get_ready(uart_handler *p_handle, bool *p_is_init);
+status_t uart_write_data(uart_handler *p_handle, char *p_data, size_t size);
 
-status_t uart_sleep(void);
-status_t uart_waik(void);
+status_t uart_sleep(uart_handler *p_handle);
+status_t uart_waik(uart_handler *p_handle);
 
 //status_t uart_change_bool_param(uart_bool_params _Bool_param, _Bool new_value);
-status_t uart_change_data_size(uart_data_bits new_data_size);
-status_t uart_change_parity(uart_parity_type new_parity);
-status_t uart_change_baud_rate(uint16_t new_baud_rate);// uint16_t??
+status_t uart_change_data_size(uart_handler *p_handle, uart_data_bits new_data_size);
+status_t uart_change_parity(uart_handler *p_handle, uart_parity_type new_parity);
+status_t uart_change_baud_rate(uart_handler *p_handle);
 
 #ifdef __cplusplus
 }

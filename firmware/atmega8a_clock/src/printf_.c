@@ -25,7 +25,7 @@ status_t printf__custom_init(uart_handler init) {
 	handle.baud_rate = init.baud_rate;
 	//init_.channel_mode = normal;
 	handle.data_bits = init.data_bits;
-	handle.parity_type = init.parity_type;
+	handle.parity = init.parity;
 	handle.stop_bits = init.stop_bits;
 
 	init_status = uart_init(&handle);
@@ -44,7 +44,7 @@ status_t printf__init(uint8_t id) {
 #endif
 	//init_.channel_mode = normal;
 	handle.data_bits = data_8;
-	handle.parity_type = none_parity;
+	handle.parity = none;
 	handle.stop_bits = stop_1;
 
 	//handle.id = usart_id;
@@ -61,7 +61,7 @@ status_t printf__init(uint8_t id) {
 }
 
 status_t putch_(char ch) {
-	return uart_write_data(/*&handle,*/ &ch, 1);
+	return uart_write_data(&handle, &ch, 1);
 }
 
 //todo: количесво символов для вывода, что делать если пустая строка
@@ -134,7 +134,10 @@ uint32_t printf_(const char *str,...) {
     va_end(argptr);
 
     result_str[size++] = '\0';
-	uart_write_data(/*&handle,*/ result_str, size);
+	
+	if (handle.ready == true)
+	    uart_write_data(&handle, result_str, size);
+		
 	return size;
 }
 

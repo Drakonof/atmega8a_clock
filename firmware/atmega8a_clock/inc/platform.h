@@ -37,6 +37,12 @@ typedef struct
 	in_osc_calib_value calib_value;
 } platform_handle;
 
+typedef enum  {
+	uart_rx,
+	uart_tx,
+	uart_both
+} interrupts;
+
 status_t platform_init(platform_handle *handle);
 status_t platform_re_init(platform_handle *handle);
 status_t platform_release(void);
