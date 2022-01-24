@@ -1,13 +1,14 @@
 //todo: multimaster, block/unblock read/write slave, 9 bit, error statuses, unblock echo
 #include "uart.h"
 
+volatile bool *p_ready_rx_ =  NULL, *p_ready_tx_ =  NULL;
+
 static uint8_t pre_sleep_state_ = 0; 
 
-volatile bool *p_ready_rx_ =  NULL, *p_ready_tx_ =  NULL;
 static char *p_data_tx_ = NULL, *p_data_rx_ = NULL;  
+
 static size_t size_tx_ = 0,  size_rx_ = 0,    
               data_counter_tx_ = 0, data_counter_rx_ = 0; 
-
 
 //---------------------------------------------upper half---------------------------------------------//
 
@@ -19,26 +20,6 @@ static void write_unblock_mode_data_(void);
 static void write_block_mode_data_(char *p_data, size_t size);
 
 //---------------------------------------------lower half---------------------------------------------//
-
-//static inline void set_interrupt_(/*interrupts*/int interpt, bool do_setting);
-//static void set_double_speed_(bool do_double_speed,bool do_setting);
-//static void set_mul_proc_(bool do_mul_proc,bool do_setting);
-//static void set_synchronous_(bool do_synchronous, bool do_setting);
-//static void set_stop_bits_(uint8_t stop_bits, bool do_setting);
-//static void set_falling_edge_polarity_(bool do_falling_edge_polarity, bool do_setting);
-
-//static void set_data_size_(uint8_t data_bits, bool do_setting);
-static void set_parity_(uint8_t parity, bool do_setting);
-static void set_baud_rate_(bool do_double_speed, bool do_synchronous, uint16_t baud_rate, bool do_setting);
-
-static void set_sleep_(void);
-static void set_waik_(void);
-
-static void set_write_(bool do_setting);
-static void set_read_(bool do_setting);
-
-static uint8_t get_data_word_(void);
-static void set_data_word_(char data);
 
 #define M_set_interrupt(interpt, do_setting) do {                            \
     UCSRB &= (false << UDRIE) | (false << TXCIE) | (false << RXCIE);         \
@@ -66,7 +47,7 @@ static void set_data_word_(char data);
                                                                  \
     if ((true == (do_double_speed)) && (true == (do_setting))) { \
 		UCSRA |= (true << U2X);                                  \
-    }                                                            \                 
+	}                                                            \
 } while (0)
 
 #define M_set_mul_proc(do_mul_proc, do_setting) do {         \
@@ -85,12 +66,12 @@ static void set_data_word_(char data);
 	}                                                           \
 } while (0)
 
-#define M_set_stop_bits(stop_bits, do_setting) do {      \   
-    UCSRC |= (true << URSEL) | (false << USBS);          \
-                                                         \
-    if ((true == (do_setting)) &&  (1 == (stop_bits))) { \
-		UCSRC |= (true << URSEL) | (true << USBS);       \
-	}                                                    \
+#define M_set_stop_bits(stop_bits, do_setting) do {           \
+    UCSRC |= (true << URSEL) | (false << USBS);               \
+                                                              \
+    if ((true == (do_setting)) &&  (stop_2 == (stop_bits))) { \
+		UCSRC |= (true << URSEL) | (true << USBS);            \
+	}                                                         \
 } while (0)
 
 #define M_set_falling_edge_polarity(do_falling_edge_polarity, do_setting) do { \
@@ -128,92 +109,78 @@ static void set_data_word_(char data);
 	}                                                                       \
 } while (0)
 
-static void set_parity_(uint8_t parity, bool do_setting)
-{
-    UCSRC |= (true << URSEL) | (false << UPM1) | (false << UPM0);
+#define M_set_parity(parity, do_setting) do {                             \
+    UCSRC |= (true << URSEL) | (false << UPM1) | (false << UPM0);         \
+                                                                          \
+    if (true == (do_setting)) {                                           \
+		switch (parity) {                                                 \
+        case none:                                                        \
+            UCSRC |= (true << URSEL) |(false << UPM1) | (false << UPM0);  \
+        break;                                                            \
+        case even:                                                        \
+            UCSRC |= (true << URSEL) | (true << UPM1);                    \
+        break;                                                            \
+        case odd:                                                         \
+            UCSRC |= (true << URSEL) | (true << UPM1) | (true << UPM0);   \
+        break;                                                            \
+        default:                                                          \
+            UCSRC |= (true << URSEL) | (false << UPM1) | (false << UPM0); \
+        break;                                                            \
+        }                                                                 \
+	}                                                                     \
+} while (0)
 
-    if(true == do_setting)
-	{
-		switch (parity)
-        {
-        case none:
-            UCSRC |= (true << URSEL) |(false << UPM1) | (false << UPM0);
-        break;
-        case even:
-            UCSRC |= (true << URSEL) | (true << UPM1);
-        break;
-        case odd:
-            UCSRC |= (true << URSEL) | (true << UPM1) | (true << UPM0);
-        break;
-        default:
-            UCSRC |= (true << URSEL) | (false << UPM1) | (false << UPM0);
-        break;
-        }
-	}
-}
+#define M_set_baud_rate(do_double_speed, do_synchronous, baud_rate, do_setting) do { \
+	const uint8_t M_c_shift_value = 8;                                               \
+	const unsigned int c_coef = 16;                                                  \
+	uint16_t M_baud_reg_val = 0;                                                     \
+                                                                                     \
+	if ( true == (do_synchronous)) {                                                 \
+        M_baud_reg_val = (F_CPU / (c_coef * (baud_rate))) - 1;                       \
+	}                                                                                \
+	else if (true == (do_double_speed)) {                                            \
+	    M_baud_reg_val = (F_CPU / (c_coef * (baud_rate))) - 1;                       \
+	}                                                                                \
+	else {                                                                           \
+	    M_baud_reg_val = (F_CPU / (c_coef * (baud_rate))) - 1;                       \
+	}                                                                                \
+                                                                                     \
+	UBRRH = (false << URSEL) | ((uint8_t)(M_baud_reg_val >> M_c_shift_value));       \
+	UBRRL = (uint8_t)M_baud_reg_val;                                                 \
+} while (0)
 
-static void set_baud_rate_(bool do_double_speed, bool do_synchronous, uint16_t baud_rate, bool do_setting)
-{
-	const uint8_t shift_value = 8;
-	uint16_t baud_reg_val = 0;
-
-	if ( true == do_synchronous)
-	{
-        baud_reg_val = (F_CPU / (16UL * baud_rate)) - 1;
-	}
-	else if (true == do_double_speed)
-	{
-	    baud_reg_val = (F_CPU / (16UL * baud_rate)) - 1;
-	}
-	else
-	{
-	    baud_reg_val = (F_CPU / (16UL * baud_rate)) - 1;
-	}
-
-	UBRRH = (false << URSEL) | ((uint8_t)(baud_reg_val >> shift_value));
-	UBRRL = (uint8_t)baud_reg_val;
-} 
-
-static void set_sleep_(void)
-{
-    pre_sleep_state_ = UCSRB;
-
-    UCSRB = 0;
-}
+#define M_set_sleep(void) do { \
+    pre_sleep_state_ = UCSRB;  \
+    UCSRB = 0;                 \
+} while (0)
 
 
-static void set_waik_(void)
-{
-    UCSRB = pre_sleep_state_;
-}
+#define M_set_waik(void) do { \
+    UCSRB = pre_sleep_state_; \
+} while (0)
 
-static void set_read_(bool do_setting)
-{  
-    UCSRB &= ~((true << RXEN) | (true << TXEN));
-	if (do_setting)
-    UCSRB |= (true << RXEN); 
+#define M_set_read(do_setting) do {              \
+    UCSRB &= ~((true << RXEN) | (true << TXEN)); \
+	if (true == (do_setting))                    \
+    UCSRB |= (true << RXEN);                     \
+} while (0)
 
-}
+#define M_set_write(do_setting) do {             \
+	UCSRB &= ~((true << RXEN) | (true << TXEN)); \
+                                                 \
+	if (true == (do_setting))                    \
+	UCSRB |= (true << TXEN);                     \
+} while (0)
 
-static void set_write_(bool do_setting)
-{
-	UCSRB &= ~((true << RXEN) | (true << TXEN));
+#define M_get_data_word(void) ({              \
+    while (false == (UCSRA & (true << RXC))); \
+    UDR;                                      \
+})
 
-	if (do_setting)
-	UCSRB |= (true << TXEN);
-}
-
-static uint8_t get_data_word_(void)
-{
-    while ( !(UCSRA & (true << RXC)));
-    return UDR;
-}
-
-static void set_data_word_(char data)
-{
-    while ( !(UCSRA & (1 << UDRE)));
-    UDR = data;
-}
+#define M_set_data_word(data) do {          \
+    while (false == (UCSRA & (1 << UDRE))); \
+    UDR = (data);                           \
+} while (0)
 
 //---------------------------------------------upper half---------------------------------------------//
 
@@ -239,9 +206,9 @@ static status_t init_driver_(uart_handler *p_handle, bool do_init) {
     M_set_synchronous(p_handle->do_synchronous,do_init);
     M_set_stop_bits(p_handle->stop_bits,do_init);
     M_set_falling_edge_polarity(p_handle->do_falling_edge_polarity,do_init);
-	set_parity_(p_handle->parity, do_init);
+	M_set_parity(p_handle->parity, do_init);
     M_set_data_size(p_handle->data_bits, do_init);
-    set_baud_rate_(p_handle->do_double_speed, p_handle->do_synchronous, p_handle->baud_rate, do_init);
+    M_set_baud_rate(p_handle->do_double_speed, p_handle->do_synchronous, p_handle->baud_rate, do_init);
 	
 	// for platform
 	if ((true == p_handle->do_unblocking_mode) && (true == do_init)) {
@@ -348,19 +315,19 @@ status_t uart_read_data(uart_handler *p_handle, void *p_data, size_t size) {
 
 static void read_unblock_mode_data_(void) {
    M_set_interrupt(uart_rx, true);
-   set_read_(true);
+   M_set_read(true);
 }
 
 static void read_block_mode_data_(char *p_data, size_t size) {
 	uint32_t i = 0;
 
-    set_read_(true);
+    M_set_read(true);
 
 	for (i = 0; i < size; i++) {
-		p_data[i] = get_data_word_();
+		p_data[i] = M_get_data_word();
 	}
 
-    set_read_(false);
+    M_set_read(false);
 }
 
 status_t uart_write_data(uart_handler *p_handle, char *p_data, size_t size) {
@@ -394,19 +361,19 @@ status_t uart_write_data(uart_handler *p_handle, char *p_data, size_t size) {
 
 static void write_unblock_mode_data_(void) {
 	M_set_interrupt(uart_tx, true);
-    set_write_(true);
+    M_set_write(true);
 }
 
 static void write_block_mode_data_(char *p_data, size_t size) {
 	uint32_t i = 0;
 
-    set_write_(true);
+    M_set_write(true);
 
 	for(i = 0; i < size; i++) {
-		set_data_word_(p_data[i]);
+		M_set_data_word(p_data[i]);
 	}
 
-    set_write_(false);
+    M_set_write(false);
 }
 
 status_t uart_sleep(uart_handler *p_handle) {
@@ -418,7 +385,7 @@ status_t uart_sleep(uart_handler *p_handle) {
 		return error;
 	}
 
-    set_sleep_();
+    M_set_sleep();
 
     return ok;
 }
@@ -433,14 +400,10 @@ status_t uart_waik(uart_handler *p_handle) {
 		return error;
 	}
 
-    set_waik_();
+    M_set_waik();
 
     return ok;
 }
-
-//---------------------------------------------lower half---------------------------------------------//
-
-
 
 //---------------------------------------------interrupts------------------------------------------//
 
@@ -450,7 +413,7 @@ ISR(USART_UDRE_vect) {
 
 		if ( data_counter_tx_ == size_tx_ ) {
 		    M_set_interrupt(uart_tx, false);
-		    set_write_(false);
+		    M_set_write(false);
 		    *p_ready_tx_ = true;
 	    }
 	}
@@ -461,7 +424,7 @@ ISR(USART_RXC_vect) {
 
     if (data_counter_rx_ == size_rx_) {
 	    M_set_interrupt(uart_rx, false);
-	    set_read_(false);
+	    M_set_read(false);
  	    *p_ready_rx_ = true;
     }
 }
