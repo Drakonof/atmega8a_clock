@@ -135,7 +135,7 @@ uint32_t printf_(const char *str,...) {
 
     result_str[size++] = '\0';
 	
-	if (handle.ready == true)
+	if (handle.ready_tx == true)
 	    uart_write_data(&handle, result_str, size);
 		
 	return size;

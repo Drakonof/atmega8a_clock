@@ -13,7 +13,7 @@
 #include "types.h"
 
 #define AVR_ATMEGA8A
-#define PRINTF_UNBLOCK_MODE_ENABLE false
+#define PRINTF_UNBLOCK_MODE_ENABLE true
 
 typedef enum
 {

@@ -44,10 +44,17 @@ typedef enum
 	both
 } uart_path_reset;
 
+typedef enum
+{
+	twice_stop,
+	double_speed,
+	falling_edge_polarity
+} uart_bool_params;
+
 typedef struct
 {
-	volatile bool     ready;
-//	ps_uart_id           id;
+	volatile bool     ready_rx;
+	volatile bool     ready_tx;
 	volatile bool      is_init;
 	uart_stop_bits stop_bits;
 	
@@ -57,6 +64,7 @@ typedef struct
 	uint32_t             baud_rate;
 	bool do_double_speed;
 	bool do_falling_edge_polarity;
+	
 	bool do_mul_proc;
 	bool do_unblocking_mode;
 	bool do_synchronous;
@@ -66,13 +74,11 @@ status_t uart_init(uart_handler *p_handle);
 status_t uart_re_init(uart_handler *p_handle);
 status_t uart_release(uart_handler *p_handle);
 status_t uart_read_data(uart_handler *p_handle, void *p_data, size_t size);
-status_t uart_get_ready(uart_handler *p_handle, bool *p_is_init);
 status_t uart_write_data(uart_handler *p_handle, char *p_data, size_t size);
 
 status_t uart_sleep(uart_handler *p_handle);
 status_t uart_waik(uart_handler *p_handle);
 
-//status_t uart_change_bool_param(uart_bool_params _Bool_param, _Bool new_value);
 status_t uart_change_data_size(uart_handler *p_handle, uart_data_bits new_data_size);
 status_t uart_change_parity(uart_handler *p_handle, uart_parity_type new_parity);
 status_t uart_change_baud_rate(uart_handler *p_handle);
