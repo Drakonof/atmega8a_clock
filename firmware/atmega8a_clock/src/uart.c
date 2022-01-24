@@ -9,7 +9,7 @@
 | 24.01.21 : complited without todo.
 |
 | todo     : multimaster, 
-|            block/unblock 
+|            block/unblock,
 |            read/write slave, 
 |            error statuses, 
 |            unblock echo
